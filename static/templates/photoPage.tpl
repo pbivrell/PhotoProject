@@ -36,7 +36,7 @@ crossorigin="anonymous">
 <div class="column">
     {{end}}
     <a href="{{$v}}" class="primary progressive replace blur" id="slideshow" onclick="on({{$i}});return false;">
-        <img src="A" class="preview" alt=""/>
+        <img src="{{index .TinyImages $i}}" class="preview" alt=""/>
     </a>
 {{end}}
 </div>
@@ -49,7 +49,6 @@ crossorigin="anonymous">
 {{end}}
 </div>
 </div>
-<script src="js/load-image-orientation.js"></script>
 <script src="js/slideshow.js"></script>
 </body>
 </html>
