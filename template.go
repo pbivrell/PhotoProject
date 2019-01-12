@@ -3,7 +3,6 @@ package photoProject
 import (
     "html/template"
     "math"
-    "fmt"
 )
 
 type ColContainer struct {
