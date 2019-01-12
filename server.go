@@ -27,7 +27,7 @@ import (
         "google.golang.org/api/drive/v3"
        )
 
-const static_dir = "./static/"
+const static_dir = "./photoProject/static/"
 
 
 // -------------------- Server Construction Functions ----------------
@@ -47,7 +47,7 @@ func NewServer() (*Server) {
     return &Server{GDSCredentialsConfig: config, GDSClient: nil, GDSClientLock: &sync.RWMutex{}}
 }
 
-const credentialsFile = "./credentials.json"
+const credentialsFile = "./photoProject/credentials.json"
 
 func LoadGDSCredentials() (*oauth2.Config, error){
         b, err := ioutil.ReadFile(credentialsFile)
