@@ -32,13 +32,10 @@ func template_func_create(len int) *ColContainer {
 }
 
 func template_func_newColumn(a *ColContainer, i int) bool{
-    fmt.Println(a)
     if i == 0 || i != a.Next {
-        fmt.Println("new col: false")
         return false
     }    
     if (a.Max - 1) == 0 {
-        fmt.Println("new col: true")
         return true
     }
     if i == a.Next{
@@ -48,10 +45,8 @@ func template_func_newColumn(a *ColContainer, i int) bool{
         }else{
             a.Next += (a.Max - 1)
         }
-        fmt.Println("new col: true")
         return true
     }
-    fmt.Println("new col: false")
     return false
 }
 
