@@ -22,12 +22,12 @@ import (
         "errors"
         "sync" 
        
-        "paulWeb/servable"
+        "github.com/pbivrell/Web/servable"
         "github.com/gorilla/mux"
         "google.golang.org/api/drive/v3"
        )
 
-const static_dir = "/home/pbivrell/go/src/paulWeb/photoProject/static/"
+const static_dir = "./static/"
 
 
 // -------------------- Server Construction Functions ----------------
@@ -47,7 +47,7 @@ func NewServer() (*Server) {
     return &Server{GDSCredentialsConfig: config, GDSClient: nil, GDSClientLock: &sync.RWMutex{}}
 }
 
-const credentialsFile = "/home/pbivrell/go/src/paulWeb/photoProject/credentials.json"
+const credentialsFile = "./credentials.json"
 
 func LoadGDSCredentials() (*oauth2.Config, error){
         b, err := ioutil.ReadFile(credentialsFile)
