@@ -1,11 +1,10 @@
-package main
+package photoProject
 
-import "os"
-import "text/template"
-import "math"
-
-//{{range $i, $v := .}}{{{$i}} {{$v}}{{end}}
-//`
+import (
+    "html/template"
+    "math"
+    "fmt"
+)
 
 type ColContainer struct {
     Max int
@@ -21,44 +20,54 @@ type Data struct {
     TinyImages []string
 }
 
-func main() {
+const template_dir = "/home/pbivrell/go/src/paulWeb/photoProject/static/templates/"
 
-//    t := `{{$colContainer:= create (len .)}}{{range $i, $v := .}}{{if newColumn $colContainer $i}} {{end}}{{$v}}{{end}}`
-    
-    fm := template.FuncMap{"create": func(len int) *ColContainer {
-        max := int(math.Ceil(float64(len)/4.0))
-        numMax := len % 4
-        if numMax == 0{
-            numMax = 4
-        }
-        return &ColContainer{Max: max, NumMax: numMax, Next: max }
-    
-    }, "newColumn": func(a *ColContainer, i int) bool{
-        if i == 0 || i != a.Next {
-            return false
-        }    
-        if (a.Max - 1) == 0 {
-            return true
-        }
-        if i == a.Next{
-            if a.NumMax > 1 {
-                a.NumMax -= 1
-                a.Next += a.Max
-            }else{
-                a.Next += (a.Max - 1)
-            }
-            return true
-        }
-        return false
-    }}
-
-    d := Data{
-        Title1: "Test",
-        Title2: "Also a Test",
-        Description: "This is a good old description",
-        BigImages: []string { "a","b","c","d","e"},
-        TinyImages: []string { "a","b","c","d","e"},
+func template_func_create(len int) *ColContainer {
+    max := int(math.Ceil(float64(len)/4.0))
+    numMax := len % 4
+    if numMax == 0{
+        numMax = 4
     }
-    //d := []string{"a","b","c","d","e","f","g","h","i","j","k","l","m","n","o","p","q"}
-    template.Must(template.New("").Funcs(fm).ParseFiles("./template.tpl")).Execute(os.Stdout, d)
+    return &ColContainer{Max: max, NumMax: numMax, Next: max }
 }
+
+func template_func_newColumn(a *ColContainer, i int) bool{
+    fmt.Println(a)
+    if i == 0 || i != a.Next {
+        fmt.Println("new col: false")
+        return false
+    }    
+    if (a.Max - 1) == 0 {
+        fmt.Println("new col: true")
+        return true
+    }
+    if i == a.Next{
+        if a.NumMax > 1 {
+            a.NumMax -= 1
+            a.Next += a.Max
+        }else{
+            a.Next += (a.Max - 1)
+        }
+        fmt.Println("new col: true")
+        return true
+    }
+    fmt.Println("new col: false")
+    return false
+}
+
+const displayTemplate = "photoPage.tpl"
+func getDisplayTemplate() (*template.Template,error) {
+    return  template.New(displayTemplate).Funcs(template.FuncMap{"create":template_func_create, "newColumn":template_func_newColumn,}).ParseFiles(template_dir + displayTemplate)
+}
+
+const createTemplate = "createPage.html"
+func getCreateTemplate() (*template.Template, error) {
+    return template.New(createTemplate).ParseFiles(template_dir + createTemplate)
+}
+
+const authTemplate = "authPage.tpl"
+func getAuthTemplate() (*template.Template, error) {
+    return template.New(authTemplate).ParseFiles(template_dir + authTemplate)
+}
+
+

@@ -1,0 +1,89 @@
+<html>
+<head>
+    <script
+    src="https://code.jquery.com/jquery-3.3.1.min.js"
+    integrity="sha256-FgpCb/KJQlLNfOu91ta32o/NMZxltwRo8QtmkMRdAu8="
+    crossorigin="anonymous">
+    </script>
+	
+	<style>
+		.loader { 
+            border: 16px solid #8c0e23; 
+            border-radius: 50%; 
+            border-top: 16px solid #564f50; 
+            margin: auto;
+            margin-top: 100px;
+            width: 120px; 
+            height: 120px; 
+            -webkit-animation: spin 2s linear infinite; 
+            /* Safari */ 
+            animation: spin 2s linear infinite; 
+        } 
+        
+        /* Safari */ 
+        @-webkit-keyframes spin { 
+            0% { -webkit-transform: rotate(0deg); } 
+            100% { -webkit-transform: rotate(360deg); } 
+        } 
+        
+        @keyframes spin { 
+            0% { transform: rotate(0deg); } 
+            100% { transform: rotate(360deg); } 
+        }
+        
+        #overlay {
+            display: none;       
+        }   
+	</style>
+    <link rel="stylesheet" href="static/css/responsive-grid.css">
+</head>
+<body>
+    <h1>Create New Page</h1>
+    <p>To create a new page upload photos to a google drive folder. Then get a sharable link to that drive folder
+    </p>
+    Drive Sharable Link:<br>
+    <input type="text" id="link"><br>
+    Page Title<br>
+    <input type="text" id="title1"><br>
+    Page SubTitle<br>
+    <input type="text" id="title2"><br>
+    Description<br>
+    <input type="text" id="description"><br>
+    <button onclick="send()">Submit</button>
+</form>
+<p id="error" style="color:red"></p>
+<div id="overlay">
+    <div class="w3-content w3-display-container">
+        <div class="loader">
+        </div>
+    </div>
+</div>
+
+<script type="text/javascript">
+    function send() {
+        document.getElementById("overlay").style.display = "block";
+        var loadData= {
+            title1: $("#title1").val(),
+            title2: $("#title2").val(),
+            link: $("#link").val(),
+            description: $("#description").val(),
+        }
+
+        $.ajax({
+            url: '/load',
+            type: 'post',
+            contentType: 'application/json',
+            success: function (data) {
+                console.log(data);
+                window.location.replace("/display?id="+data);
+            },
+            error: function (msg) {
+                document.getElementById("error").innerHTML = msg.responseText;
+                document.getElementById("overlay").style.display = "none";
+            },
+            data: JSON.stringify(loadData)
+        });
+    }
+</script>
+</body>
+</html>
