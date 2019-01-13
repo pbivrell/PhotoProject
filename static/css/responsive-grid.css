@@ -1,7 +1,7 @@
 #overlay {
     position: fixed;
     display: none;
-    width: 40%;
+    width: 1000%;
     height: 100%;
     top: 0;
     left: 0;
@@ -11,7 +11,6 @@
     z-index: 2;
     cursor: pointer;
 }
-
 
 * {
     box-sizing: border-box;

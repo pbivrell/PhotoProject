@@ -102,6 +102,8 @@ func ProcessImage(srv *drive.Service, f *drive.File, parentID string, shrink boo
     }
     if shrink {
         img = imaging.Resize(img, 20, 0, imaging.Lanczos)
+    }else{
+        img = imaging.Resize(img, 2500, 0, imaging.Lanczos)
     }
     var b bytes.Buffer
     imageWriter := bufio.NewWriter(&b)

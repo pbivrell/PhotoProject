@@ -47,7 +47,7 @@ crossorigin="anonymous">
     <div class="w3-content w3-display-container">
 <button class="w3-button w3-black w3-display-left" onclick="plusDivs(-1,event)">&#10094;</button>
 <button class="w3-button w3-black w3-display-right" onclick="plusDivs(1,event)">&#10095;</button>
-{{range $i, $v := .BigImages}}<img class="mySlides" src="https://drive.google.com/uc?export=view&id={{$v}}" style="">
+{{range $i, $v := .BigImages}}<img class="mySlides" src="https://drive.google.com/uc?export=view&id={{$v}}" style="width: 100%">
 {{end}}
 </div>
 </div>

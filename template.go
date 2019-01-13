@@ -19,7 +19,7 @@ type Data struct {
     TinyImages []string
 }
 
-const template_dir = "./photoProject/static/templates/"
+const template_dir = static_dir + "templates/"
 
 func template_func_create(len int) *ColContainer {
     max := int(math.Ceil(float64(len)/4.0))
