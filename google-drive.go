@@ -32,24 +32,36 @@ func CreatePageConfig(srv *drive.Service, projectID string, data LoadData, w htt
 }
 
 const ImageProjectRoot = "PhotoProjectRoot"
+const ImageProjectIndex = "PhotoProjectIndex.json"
 
-func CreateFileStructure(srv *drive.Service, projectID string) (string, *drive.File, *drive.File, error) {
+func CreateRootFile(srv *drive.Service) (string, string, error) {
     r, err := srv.Files.List().PageSize(1).
                 Fields("nextPageToken, files(id, name)").
-                Q("name='"+ImageProjectRoot+"'").Do()
+                Q("name='"+ImageProjectIndex+"'").Do()
     if err != nil {
-        return "", nil, nil, fmt.Errorf("Error looking for root image directory: %v\n", err)
+        return "","", fmt.Errorf("Error looking for index file: %v\n", err)
     }
-    var root *drive.File
     if len(r.Files) == 0 {
-        root, err = srv.Files.Create(&drive.File{Name:ImageProjectRoot, MimeType:"application/vnd.google-apps.folder"}).Do()
-    }else{
-        root = r.Files[0]
+        rootDir, err := srv.Files.Create(&drive.File{Name:ImageProjectRoot, MimeType:"application/vnd.google-apps.folder"}).Do()
+        if err != nil {
+            return "", "", fmt.Errorf("Error creating root directory: %v\n", err)
+        }
+        indexFile, err := srv.Files.Create(&drive.File{Name:ImageProjectIndex , MimeType:"application/json", Parents: []string{rootDir.Id}}).Media(bufio.NewReader(bytes.NewBufferString("{ items: [] }"))).Do()
+        
+        if err != nil {
+            return "", "", fmt.Errorf("Error creating index.json: %v\n", err)
+        }
+        srv.Permissions.Create(indexFile.Id, &drive.Permission{Role: "reader", Type: "anyone"}).Do()
+        return rootDir.Id, indexFile.Id, nil
     }
-    if err != nil {
-        return "", nil, nil, fmt.Errorf("Error creating root directory: %v\n", err)
-    }
-    project, err := srv.Files.Create(&drive.File{Name:projectID, MimeType:"application/vnd.google-apps.folder", Parents: []string{root.Id}}).Do()
+    // This assumes that the photoProjectIndex file is in the root directory. This all falls apart if it is not
+    // I think this is acceptable because the person running the server controls where the images are written to
+    // and they would only be shooting themselves in the foot if this was wrong.
+    return r.Files[0].Parents[0], r.Files[0].Id, nil
+}
+
+func CreateNewProject(srv *drive.Service, rootId, projectId string) (string, *drive.File, *drive.File, error) {
+    project, err := srv.Files.Create(&drive.File{Name:projectId, MimeType:"application/vnd.google-apps.folder", Parents: []string{rootId}}).Do()
     if err != nil {
         return "", nil, nil, fmt.Errorf("Error creating project directory: %v\n", err)
     }
@@ -64,8 +76,8 @@ func CreateFileStructure(srv *drive.Service, projectID string) (string, *drive.F
     return project.Id, tiny, big, nil
 }
 
-func ProcessImages(srv *drive.Service, folderId string) (string, []string, []string, error) {
-    projectId, tiny, big, err := CreateFileStructure(srv, folderId)
+func ProcessImages(srv *drive.Service, rootId, folderId string) (string, []string, []string, error) {
+    projectId, tiny, big, err := CreateNewProject(srv, rootId, folderId)
     if err != nil {
         return projectId, nil, nil, err
     }

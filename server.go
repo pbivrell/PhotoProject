@@ -35,16 +35,18 @@ const static_dir = "./photoProject/static/"
 type Server struct{
     GDSCredentialsConfig *oauth2.Config
     GDSClient *drive.Service
-    GDSClientLock *sync.RWMutex
+    Lock *sync.RWMutex
+    RootId string
+    IndexId string
 }
 
 func NewServer() (*Server) {
     config, err := LoadGDSCredentials()
     if err != nil {
         fmt.Printf("ERROR: Unable to create GDS config form credentials.json: CAUSED BY: %v\n", err)
-        return &Server{GDSCredentialsConfig: nil, GDSClient: nil, GDSClientLock: &sync.RWMutex{}}
+        return &Server{GDSCredentialsConfig: nil, GDSClient: nil, Lock: &sync.RWMutex{}, RootId: "", IndexId: ""}
     }
-    return &Server{GDSCredentialsConfig: config, GDSClient: nil, GDSClientLock: &sync.RWMutex{}}
+    return &Server{GDSCredentialsConfig: config, GDSClient: nil, Lock: &sync.RWMutex{}, RootId: "", IndexId: ""}
 }
 
 const credentialsFile = "./photoProject/credentials.json"
@@ -76,7 +78,7 @@ func (s *Server) ConfigureRouter(r *mux.Router){
     r.HandleFunc("/load", s.Load)
     r.HandleFunc("/auth", s.AuthGDS)
     r.HandleFunc("/configureGDS", s.ConfigureGDS)
-    
+    r.HandleFunc("/index", s.IndexPageTemplate)
     // Error pages
     r.HandleFunc("/notAuthenticated", func (w http.ResponseWriter, r *http.Request) { fmt.Fprintf(w,"Unable to create Google Drive Service. Website admin has not linked authenticated a Google Drive account. Contact admin to fix.")})
     r.HandleFunc("/badCredentials", func (w http.ResponseWriter, r *http.Request) { fmt.Fprintf(w,"Unable to create configuration from Google API Credentials. This webpage will not have access to Google Drive until the server has been restart. See documentation for more information.")})
@@ -89,13 +91,14 @@ func (s *Server) SetupGDS() (bool, bool) {
         return false,false
     }
 
-    s.GDSClientLock.RLock()
+    s.Lock.RLock()
     hasClient := s.GDSClient != nil
-    s.GDSClientLock.RUnlock()
+    s.Lock.RUnlock()
     return true, hasClient
 }
 
 // --------------------- Routes -----------------------
+
 
 func (s *Server) AuthGDS(w http.ResponseWriter, r *http.Request) {
     if credentials, _ := s.SetupGDS(); !credentials {
@@ -123,39 +126,94 @@ func (s *Server) ConfigureGDS(w http.ResponseWriter, r *http.Request) {
     if err != nil {
         fmt.Fprintf(w, "Failed to create Google Drive Client: Reason: %v\n", err)
         return
-    }    
-    s.GDSClientLock.Lock()
+    }
+    s.Lock.Lock()
     s.GDSClient = srv
-    s.GDSClientLock.Unlock()
-    http.Redirect(w,r, "/create", http.StatusSeeOther)
+    rootFolderId, indexFileId, err := CreateRootFile(srv)
+    if err != nil {
+        http.Error(w, fmt.Errorf("Failed to create root file structure: %v\n", err).Error(), 500)
+    }else{
+        s.RootId = rootFolderId
+        s.IndexId = indexFileId
+        http.Redirect(w,r, "/create", http.StatusSeeOther)
+    }
+    s.Lock.Unlock()
+
+}
+
+/*type IndexData struct {
+    Items []struct{
+        Id string `json:"id"`
+        Title1 string `json:"title1"`
+    }`json:"items"`
+}*/
+
+type IndexData struct {
+    Items []IndexPair `json:"items"`
+}
+
+type IndexPair struct {
+    Id string `json:"id"`
+    Title1 string `json:"title1"`
+}
+
+// Authorization Required Pages
+func (s *Server) IndexPageTemplate(w http.ResponseWriter, r *http.Request){
+    /*resp, err := http.Get("https://drive.google.com/uc?export=view&id=" + s.IndexId)
+    if err != nil {
+        http.Error(w, fmt.Errorf("Could not load index page: %v\n",err).Error(), 500)
+        return
+    }
+    decoder := json.NewDecoder(resp.Body)
+    var data IndexData
+    err = decoder.Decode(&data)
+    if err != nil {
+        http.Error(w, fmt.Errorf("Failed to build page: %v\n",err).Error(), 500)
+        return
+    }*/
+    
+    data := IndexData{
+        Items: []IndexPair{ IndexPair{Id:"B", Title1:"Test2",},IndexPair{Id:"C", Title1:"Test3"},},
+    }
+
+    tmpl, err := getIndexTemplate()
+    if err != nil{
+        http.Error(w, fmt.Errorf("Failed to build page: %v\n",err).Error(), 500)
+        return
+    }
+    err = tmpl.Execute(w, data)
+    if err != nil {
+        http.Error(w, fmt.Errorf("Failed to build page: %v\n",err).Error(), 500)
+    }
+    
 }
 
 func (s *Server) DisplayPageTemplate(w http.ResponseWriter, r *http.Request) {
-    projectID, exists := r.URL.Query()["id"]
+    projectId, exists := r.URL.Query()["id"]
     if !exists {
-        fmt.Fprintf(w,"Page could not be found")
+        http.Redirect(w,r, "/", http.StatusSeeOther)
         return
     }
-    resp, err := http.Get("https://drive.google.com/uc?export=view&id=" + projectID[0])
+    resp, err := http.Get("https://drive.google.com/uc?export=view&id=" + projectId[0])
     if err != nil {
-        fmt.Fprintf(w, "Page could not be found: %v\n", err)
+        http.Error(w, fmt.Errorf("Could not find page with id: %s. Page doesn't exist or has been moved!",projectId).Error(), 500)
         return
     }
     decoder := json.NewDecoder(resp.Body)
     var data LoadData
     err = decoder.Decode(&data)
     if err != nil {
-        fmt.Fprintf(w, "Page could not be built from source: %v\n", err)
+        http.Error(w, fmt.Errorf("Failed to build page: %v\n",err).Error(), 500)
         return
     }
     tmpl, err := getDisplayTemplate()
     if err != nil{
-        fmt.Printf("%v\n",err)
+        http.Error(w, fmt.Errorf("Failed to build page: %v\n",err).Error(), 500)
         return
     }
     err = tmpl.Execute(w, data)
     if err != nil {
-        fmt.Printf("%v\n",err)
+        http.Error(w, fmt.Errorf("Failed to build page: %v\n",err).Error(), 500)
     }
 }
 
@@ -169,18 +227,34 @@ type LoadData struct{
     TinyImages []string `json:"TinyImages,omitempty"`
 }
 
+// Authorization Dependent Pages
+
 func (s *Server) CreatePageTemplate(w http.ResponseWriter, r *http.Request) {
+    if credentials, authorization := s.SetupGDS(); !credentials {
+        http.Redirect(w,r, "/badCredentials", http.StatusSeeOther)
+        return
+    }else if !authorization {
+        http.Redirect(w,r, "/notAuthenticated", http.StatusSeeOther)
+        return
+    }
     tmpl, err := getCreateTemplate()
     if err != nil{
-        fmt.Printf("%v\n",err)
+        http.Error(w, fmt.Errorf("Error getting create page template: %v\n", err).Error(), 500)
     }
     err = tmpl.Execute(w,"")
     if err != nil {
-        fmt.Printf("%v\n",err)
+        http.Error(w, fmt.Errorf("Error executing template for Create page: %v\n", err).Error(), 500)
     }
 }
 
 func (s *Server) Load(w http.ResponseWriter, r *http.Request){
+    if credentials, authorization := s.SetupGDS(); !credentials {
+        http.Redirect(w,r, "/badCredentials", http.StatusSeeOther)
+        return
+    }else if !authorization {
+        http.Redirect(w,r, "/notAuthenticated", http.StatusSeeOther)
+        return
+    }
     decoder := json.NewDecoder(r.Body)
     var data LoadData
     err := decoder.Decode(&data)
@@ -193,11 +267,10 @@ func (s *Server) Load(w http.ResponseWriter, r *http.Request){
         http.Error(w, fmt.Errorf("Failed to sanitize input: %v\n", err).Error(), 500)
         return
     }
-    projectId, tiny, big, err := ProcessImages(s.GDSClient, data.folderId)
+    projectId, tiny, big, err := ProcessImages(s.GDSClient, s.RootId, data.folderId)
     if err != nil {
-         http.Error(w, err.Error(), 500)
+        http.Error(w, fmt.Errorf("Failed to process images: %v\n",err).Error(), 500)
     }
-    fmt.Printf("%d %d\n", len(tiny), len(big))
     data.TinyImages = tiny
     data.BigImages = big
     projectId = CreatePageConfig(s.GDSClient, projectId, data, w)
