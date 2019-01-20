@@ -54,7 +54,7 @@ func getDisplayTemplate() (*template.Template,error) {
     return  template.New(displayTemplate).Funcs(template.FuncMap{"create":template_func_create, "newColumn":template_func_newColumn,}).ParseFiles(template_dir + displayTemplate)
 }
 
-const indexTemplate = "IndexPage.tpl"
+const indexTemplate = "indexPage.tpl"
 func getIndexTemplate() (*template.Template, error) {
     return template.New(indexTemplate).ParseFiles(template_dir + indexTemplate)
 }

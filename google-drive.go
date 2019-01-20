@@ -3,7 +3,7 @@ package photoProject
 import (
         "fmt"
         //"log"
-        "net/http"
+        //"net/http"
         //"os"
         "bufio"
         "bytes"
@@ -16,19 +16,42 @@ import (
 
 )
 
-func CreatePageConfig(srv *drive.Service, projectID string, data LoadData, w http.ResponseWriter) string {
+func CreatePageConfig(srv *drive.Service, projectID string, data LoadData) (string, error) {
     b, err := json.Marshal(data)
     if err != nil {
-        fmt.Fprintf(w, "Unable to create page configuration: %v\n", err)
-        return ""
+        return "", fmt.Errorf("Unable to create page configuration: %v\n", err)
     }
     configFile, err := srv.Files.Create(&drive.File{Name: "config.json", MimeType:"application/json", Parents: []string{projectID}}).Media(bytes.NewReader(b)).Do()
     srv.Permissions.Create(configFile.Id, &drive.Permission{Role: "reader", Type: "anyone"}).Do()
     if err != nil {
-        fmt.Fprintf(w, "Unable to create page configuration: %v\n", err)
-        return ""
+        return "", fmt.Errorf("Unable to create configuration: %v\n", err)
     }
-    return configFile.Id
+    return configFile.Id, nil
+}
+
+func UpdateIndexPage(srv *drive.Service, projectId string, indexId string, data IndexData) (string, error) {
+    b, err := json.Marshal(data)
+    if err != nil {
+        return "", fmt.Errorf("Unable to update index page: %v\n", err)
+    }
+    err = srv.Files.Delete(indexId).Do()
+    if err != nil {
+        return "", fmt.Errorf("Unable to update index page: %v\n", err)
+    }
+    //fmt.Printf("Found files %d with id %s\n", len(r.Files),indexId)
+    //_, err = srv.Files.Update(file.Id, nil).Media(bytes.NewReader(b)).Do()
+    //if err != nil {
+    //    return fmt.Errorf("Unable to update index page: %v\n", err)
+    //}
+    configFile, err := srv.Files.Create(&drive.File{Name: "config.json", MimeType:"application/json", Parents: []string{projectId}}).Media(bytes.NewReader(b)).Do()
+    if err != nil {
+        return "", fmt.Errorf("Unable to update index page: %v\n", err)
+    }
+    srv.Permissions.Create(configFile.Id, &drive.Permission{Role: "reader", Type: "anyone"}).Do()
+    if err != nil {
+        return "", fmt.Errorf("Unable to update index page: %v\n", err)
+    }
+    return configFile.Id, nil
 }
 
 const ImageProjectRoot = "PhotoProjectRoot"
@@ -46,7 +69,7 @@ func CreateRootFile(srv *drive.Service) (string, string, error) {
         if err != nil {
             return "", "", fmt.Errorf("Error creating root directory: %v\n", err)
         }
-        indexFile, err := srv.Files.Create(&drive.File{Name:ImageProjectIndex , MimeType:"application/json", Parents: []string{rootDir.Id}}).Media(bufio.NewReader(bytes.NewBufferString("{ items: [] }"))).Do()
+        indexFile, err := srv.Files.Create(&drive.File{Name:ImageProjectIndex , MimeType:"application/json", Parents: []string{rootDir.Id}}).Media(bufio.NewReader(bytes.NewBufferString("{}"))).Do()
         
         if err != nil {
             return "", "", fmt.Errorf("Error creating index.json: %v\n", err)
@@ -54,6 +77,7 @@ func CreateRootFile(srv *drive.Service) (string, string, error) {
         srv.Permissions.Create(indexFile.Id, &drive.Permission{Role: "reader", Type: "anyone"}).Do()
         return rootDir.Id, indexFile.Id, nil
     }
+    fmt.Println("Found files with name: %d\n", len(r.Files))
     // This assumes that the photoProjectIndex file is in the root directory. This all falls apart if it is not
     // I think this is acceptable because the person running the server controls where the images are written to
     // and they would only be shooting themselves in the foot if this was wrong.

@@ -5,7 +5,7 @@
 <link rel="stylesheet" href="static/css/progressive-image.min.css">
 <link rel="stylesheet" href="https://www.w3schools.com/w3css/4/w3.css">
 <style>
-.mySlides {display:none;}
+.mySlides {display:none; height: 100%; }
 </style>
 
 <script
@@ -26,7 +26,7 @@ crossorigin="anonymous">
     <p>{{.Description}}</p>
 </div>
 
-<script src="static/js/progressive-image.min.js"></script>
+<link rel="stylesheet" href="static/css/progressive-image.min.css">
 
 <div class="row">
 <div class="column">
@@ -47,7 +47,7 @@ crossorigin="anonymous">
     <div class="w3-content w3-display-container">
 <button class="w3-button w3-black w3-display-left" onclick="plusDivs(-1,event)">&#10094;</button>
 <button class="w3-button w3-black w3-display-right" onclick="plusDivs(1,event)">&#10095;</button>
-{{range $i, $v := .BigImages}}<img class="mySlides" src="https://drive.google.com/uc?export=view&id={{$v}}" style="">
+{{range $i, $v := .BigImages}}<img src="https://drive.google.com/uc?export=view&id={{$v}}" class="mySlides">
 {{end}}
 </div>
 </div>

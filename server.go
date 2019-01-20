@@ -78,7 +78,7 @@ func (s *Server) ConfigureRouter(r *mux.Router){
     r.HandleFunc("/load", s.Load)
     r.HandleFunc("/auth", s.AuthGDS)
     r.HandleFunc("/configureGDS", s.ConfigureGDS)
-    r.HandleFunc("/index", s.IndexPageTemplate)
+    r.HandleFunc("/", s.IndexPageTemplate)
     // Error pages
     r.HandleFunc("/notAuthenticated", func (w http.ResponseWriter, r *http.Request) { fmt.Fprintf(w,"Unable to create Google Drive Service. Website admin has not linked authenticated a Google Drive account. Contact admin to fix.")})
     r.HandleFunc("/badCredentials", func (w http.ResponseWriter, r *http.Request) { fmt.Fprintf(w,"Unable to create configuration from Google API Credentials. This webpage will not have access to Google Drive until the server has been restart. See documentation for more information.")})
@@ -159,7 +159,7 @@ type IndexPair struct {
 
 // Authorization Required Pages
 func (s *Server) IndexPageTemplate(w http.ResponseWriter, r *http.Request){
-    /*resp, err := http.Get("https://drive.google.com/uc?export=view&id=" + s.IndexId)
+    resp, err := http.Get("https://drive.google.com/uc?export=view&id=" + s.IndexId)
     if err != nil {
         http.Error(w, fmt.Errorf("Could not load index page: %v\n",err).Error(), 500)
         return
@@ -170,12 +170,8 @@ func (s *Server) IndexPageTemplate(w http.ResponseWriter, r *http.Request){
     if err != nil {
         http.Error(w, fmt.Errorf("Failed to build page: %v\n",err).Error(), 500)
         return
-    }*/
-    
-    data := IndexData{
-        Items: []IndexPair{ IndexPair{Id:"B", Title1:"Test2",},IndexPair{Id:"C", Title1:"Test3"},},
     }
-
+    
     tmpl, err := getIndexTemplate()
     if err != nil{
         http.Error(w, fmt.Errorf("Failed to build page: %v\n",err).Error(), 500)
@@ -270,10 +266,36 @@ func (s *Server) Load(w http.ResponseWriter, r *http.Request){
     projectId, tiny, big, err := ProcessImages(s.GDSClient, s.RootId, data.folderId)
     if err != nil {
         http.Error(w, fmt.Errorf("Failed to process images: %v\n",err).Error(), 500)
+        return
     }
     data.TinyImages = tiny
     data.BigImages = big
-    projectId = CreatePageConfig(s.GDSClient, projectId, data, w)
+    projectId, err = CreatePageConfig(s.GDSClient, projectId, data)
+    if err != nil {
+        http.Error(w, err.Error(), 500)
+        return
+    }
+    resp, err := http.Get("https://drive.google.com/uc?export=view&id=" + s.IndexId)
+    if err != nil {
+        http.Error(w, fmt.Errorf("Could not load index page: %v\n",err).Error(), 500)
+        return
+    }
+    decoder = json.NewDecoder(resp.Body)
+    var indexdata IndexData
+    indexdata.Items = append(indexdata.Items, IndexPair{ Title1: data.Title1, Id: projectId })
+    err = decoder.Decode(&indexdata)
+    if err != nil {
+        http.Error(w, fmt.Errorf("Failed to build page: %v\n",err).Error(), 500)
+        return
+    }
+    indexId, err := UpdateIndexPage(s.GDSClient, s.RootId, s.IndexId, indexdata)
+    if err != nil {
+        http.Error(w, err.Error(), 500)
+        return
+    }
+    s.Lock.Lock()
+    s.IndexId = indexId
+    s.Lock.Unlock()
     fmt.Fprintf(w,projectId)
 }
 
