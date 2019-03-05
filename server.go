@@ -50,6 +50,11 @@ func NewServer() (*Server) {
 }
 
 const credentialsFile = "./photoProject/credentials.json"
+        
+"google.golang.org/api/drive/v3"
+        "golang.org/x/net/context"
+        "golang.org/x/oauth2"
+        "golang.org/x/oauth2/google"
 
 func LoadGDSCredentials() (*oauth2.Config, error){
         b, err := ioutil.ReadFile(credentialsFile)

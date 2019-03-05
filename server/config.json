@@ -1,0 +1,11 @@
+{
+    "admitPassword": "password",
+    "writeStorage":[
+        {
+            "name": "test",
+            "type": "googleDrive",
+            "extra": "./credentials.json"
+        }
+    ],
+    "staticDir": "./static/"
+}
