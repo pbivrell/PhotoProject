@@ -17,14 +17,31 @@ $(document).ready(function () {
                 }
             });
             if(nextCount < 1 && used < pageData.pictures.length) {
-                var small = $("<img />").attr('src', 'http://localhost:8080/static/tiny.jpg').attr('class', 'col'+i).attr('id', 'tiny').appendTo('#'+i);
-                $("<img />").attr('src', '/getImage?id='+pageData.pictures[used++]).attr('class', 'col'+i)
+                if(pageData.routingPage){
+                    var a = $("<a />").attr("href", appendChar(window.location,"/") + pageData.pictures[used]).attr("id","dir");
+                    var div = $("<div />").attr('id', 'container');
+                    var innerDiv = $("<div />").attr('id','centered').text(pageData.pictures[used++]).appendTo(div);   
+                    var img = $("<img />").attr('src', 'http://localhost:8080/getImage?root=4&t='+ used).attr('class', 'col'+i).appendTo(div);
+                    div.appendTo(a);
+                    a.appendTo('#'+i);
+                }else{
+                var small = $("<img />").attr('src', '/getImage?root=2&url='+window.location.pathname+'&name='+pageData.pictures[used]).attr('class', 'col'+i).attr('id', 'tiny').appendTo('#'+i);
+                
+                $("<img />").attr('src', '/getImage?root=1&url='+window.location.pathname+'&name='+pageData.pictures[used++]).attr('class', 'col'+i)
                     .on('load', {replace: small}, function(e) {
                         e.data.replace.replaceWith(this);
                     });
+                }
             }
         }
     };
+
+    var appendChar = function(data, c){
+        if(data[data.length -1] != c){
+            return data + c
+        }
+        return data
+    }
 
     var updatePageData = function(){
         //$("#Nav").InnerHTML("<span>
@@ -68,8 +85,8 @@ $(document).ready(function () {
     
     $(window).on('resize scroll', updateImages);
 
-    //$.getJSON("http://localhost:8080/get?path="+window.location.pathname.slice(1), function(data){
-    $.getJSON("http://localhost:8080/json", function(data){
+    $.getJSON("http://localhost:8080/get?path="+window.location.pathname.slice(1), function(data){
+    //$.getJSON("http://localhost:8080/json", function(data){
         pageData = data;
         updatePageData();
         updateImages();

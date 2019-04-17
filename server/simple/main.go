@@ -18,7 +18,7 @@ import (
     "image/jpeg"
     "net/http"
     "strconv"
-    //"strings"
+    "strings"
     "text/template"
     //"time"
 
@@ -33,10 +33,10 @@ const (
     DISPLAY_TEMPLATE = "display.tpl"
 )
 
-var storage *GoogleDriveStorage
+var storage *FileSystemWrapper
 
 func main() {
-    endpoint, authUrl, client := DoOauth()
+    _, endpoint, authUrl, client := DoOauth()
     fmt.Println(authUrl)
     r := mux.NewRouter()
     r.HandleFunc(endpoint.Path, endpoint.Handler)
@@ -47,81 +47,102 @@ func main() {
     r.HandleFunc("/get", GetConfig).Methods("GET")
     r.HandleFunc("/{path:.*}", DisplayPage).Methods("GET")
     go func(){
-        storage, _ = NewGoogleDriveStorage(<-client)
+        s, _ := NewGoogleDriveStorage(<-client)
+        storage, _ = NewFileSystemWrapper(s, "root")
+        storage.Crawl()
         fmt.Println("Storage Configured")
     }()
     http.ListenAndServe(":8080", r)
 }
 
+/*func SampleJSON(w http.ResponseWriter, r *http.Request) {
+    config := Config{
+        Title1: "Test",
+        Title2: "Page",
+        Description: "This is a test page! :)",
+        RoutingPage: true,
+        //Pictures: []string{"A", "B", "C","D","E","F","G","H","I"},
+        Pictures: []string{"Australia", "New Zealand"},
+    }
+    json.NewEncoder(w).Encode(config)
+}*/
+
 func DisplayPage(w http.ResponseWriter, r *http.Request) {
-    writeTemplate(w, nil, DISPLAY_TEMPLATE)
+    title := r.URL.Path
+    if strings.LastIndex(title, "/") == len(title) -1{
+        title = title[:len(title)-1]
+    }
+    title = title[strings.LastIndex(title, "/")+1:]
+    if title == "" {
+        title = "Home"
+    }
+    title += " | Paul's Photo Project"
+    writeTemplate(w, struct{ Title string}{title}, DISPLAY_TEMPLATE)
 }
 
 func GetConfig(w http.ResponseWriter, r *http.Request) {
     w.Header().Set("Content-Type", "application/json")
-    path, has := r.URL.Query()["path"]
-    if !has {
-        json.NewEncoder(w).Encode(Config{
-            ErrorMsg: "Page could not be found!",
-            ErrorExtra: "No path provided",
-        })
-        return
-    }
-    data := LoadConfig(path[0])
+    path := r.FormValue("path")
+    //if path == "" {
+    //    json.NewEncoder(w).Encode(Config{
+    //        ErrorMsg: "Page could not be found!",
+    //        ErrorExtra: "No path provided",
+    //    })
+    //    return
+    //}
+    data := LoadConfig(path)
     json.NewEncoder(w).Encode(data)
 }
 
 type Config struct {
-    Title1 string `json:"title1,omitempty"`
-    Title2 string `json:"title2,omitempty"`
-    Description string `json:"description,omitempty"`
-    Pictures []string `json:"pictures,omitempty"`
-    RoutingPage bool `json:"routingPage,omitempty"`
+    Title1 string `json:"title1"`
+    Title2 string `json:"title2"`
+    Description string `json:"description"`
+    Pictures []string `json:"pictures"`
+    RoutingPage bool `json:"routingPage"`
     ErrorMsg string `json:"error,omitempty"`
     ErrorExtra string `json:"error-extra,omitempty"`
 }
 
 func LoadConfig(path string) Config {
-    dir, err := storage.PathSearch(path)
-    if err != nil || len(dir) < 1{
-        return Config{
-            ErrorMsg: "Page could not be found!",
-            ErrorExtra: fmt.Sprintf("No such url [%s]: %v", path, err),
-        }
+    //fmt.Println("Path:",path)
+    path = "Original-Photos/" + path
+    fmt.Println("Path:",path)
+    id := storage.PathToId(path)
+    c := Config{}
+    if len(id) <= 0 {
+        c.ErrorMsg = "Page could not be found!"
+        c.ErrorExtra = fmt.Sprintf("No such url [%s]", path)
+        return c
     }
-    files, err := storage.List(dir[0].Id)
+    fmt.Println("Id:",id[0])
+    files, err := storage.List(id[0])
     if err != nil {
-        return Config{
-            ErrorMsg: "Page could not be found!",
-            ErrorExtra: fmt.Sprintf("Failed to list directory: %v", path, err),
-        }
+            c.ErrorMsg = "Page could not be found!"
+            c.ErrorExtra = fmt.Sprintf("Failed to list directory: %v : %v",path, err)
+            return c
     }
     configId := ""
-    hasDirectories := false
     pictureIds := make([]string, 0)
+    c.RoutingPage = false
+    //fmt.Println("THINGS:",len(pictureIds))
     for _,v := range files {
-        fmt.Println(v)
         if v.Name == "config.json" {
             configId = v.Id
-        }else if isDir, err := storage.IsFolder(v.Id); isDir || err != nil {
-            hasDirectories = true
-            pictureIds = append(pictureIds,v.Name)
         }else{
-            pictureIds = append(pictureIds,v.Id)
+            pictureIds = append(pictureIds,v.Name)
+        }
+        if isDir, err := storage.IsFolder(v.Id); isDir || err != nil {
+            c.RoutingPage = true
         }
     }
-    config := Config{
-        Title1: "",
-        Title2: "",
-        Description: "",
-        Pictures: pictureIds,
-        RoutingPage: hasDirectories,
-    }
+    c.Pictures = pictureIds
+
     if configId != "" {
         data, _ := storage.Get(configId)
-        json.NewDecoder(data).Decode(&config)
+        json.NewDecoder(data).Decode(c)
     }
-    return config
+    return c
 }
 
 /*func GetPageConfig(url string) PageConfig {
@@ -166,12 +187,27 @@ func writeTemplate(w http.ResponseWriter, data interface{}, templateType string)
 
 
 func GetImage(w http.ResponseWriter, r *http.Request) {
-    var id string
-    ids, has := r.URL.Query()["id"]
-    if has && len(ids) > 0 {
-        id = ids[0]
+    root := ""
+    t := r.FormValue("root")
+    if t == "0" {
+        root = "Original-Photos"
+    }else if t == "1" {
+        root = "Normal-Photos"
+    }else if t == "2" {
+        root = "Small-Photos"
+    }else {
+        TestGetImage(w,r)
+        return
     }
-    data, err := storage.Get(id)
+    url := r.FormValue("url")
+    name := r.FormValue("name")
+    if url != "/" {
+        url = "" + url + "/"
+    }
+    fmt.Println("P:", root + url + name)
+    path := storage.PathToId(root + url + name)
+    fmt.Println("Path:",path)
+    data, err := storage.Get(path[0])
     img, _, err := imageorient.Decode(data)
     if err != nil {
         fmt.Printf("Err %v\n", err)
@@ -190,10 +226,8 @@ func GetImage(w http.ResponseWriter, r *http.Request) {
 }
 
 func TestGetImage(w http.ResponseWriter, r *http.Request) {
-    fmt.Println("Called")
-    n := rand.Intn(501)
     buffer := new(bytes.Buffer)
-    m := image.NewRGBA(image.Rect(0, 0, 500, n+500))
+    m := image.NewRGBA(image.Rect(0, 0, 500, 500))
     rc := uint8(rand.Intn(256))
     g := uint8(rand.Intn(256))
     b := uint8(rand.Intn(256))

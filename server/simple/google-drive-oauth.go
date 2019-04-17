@@ -5,7 +5,7 @@ import (
     "golang.org/x/net/context"
     "golang.org/x/oauth2"
     "golang.org/x/oauth2/google"
-
+    "fmt"
     "net/http"
     "io/ioutil"
 )
@@ -70,12 +70,11 @@ func (s *GoogleDriveOauth) CallbackHandler(w http.ResponseWriter, r *http.Reques
         s.CallbackFailureHandler(w,r)
         return
     }
-    s.clientSetup <- struct{}{}
     s.CallbackSuccessHandler(w,r)
 }
 
 func (s *GoogleDriveOauth) GetAuthUrl() string {
-    return s.config.AuthCodeURL(s.GenerateState(), s.AccessType)
+    return s.config.AuthCodeURL(s.GenerateState(), s.AccessType, oauth2.ApprovalForce)
 }
 
 func (s *GoogleDriveOauth) LoadCredentialsFromJSON() (error){
@@ -97,7 +96,9 @@ func (s *GoogleDriveOauth) CreateClient(code string) error{
     if err != nil {
         return err
     }
+    fmt.Println("Token:",tok)
     s.client = s.config.Client(context.Background(), tok)
+    s.clientSetup <- struct{}{}
     return nil
 }
 
@@ -106,14 +107,14 @@ func (s *GoogleDriveOauth) GetClient() *http.Client {
     return s.client
 }
 
-func DoOauth() (Endpoint, string, <-chan *http.Client) {
+func DoOauth() (*GoogleDriveOauth, Endpoint, string, <-chan *http.Client) {
     oauth := NewGoogleDriveOauth()
     oauth.LoadCredentialsFromJSON()
     client := make(chan *http.Client)
     go func() {
         client <- oauth.GetClient()
     }()
-    return oauth.GetCallbackEndpoint(), oauth.GetAuthUrl(), client
+    return oauth, oauth.GetCallbackEndpoint(), oauth.GetAuthUrl(), client
 }
 
 /* Example Usage

@@ -9,11 +9,13 @@ type Storage interface {
     NewFolder(name string, parentId ...string) (File, error)
     NewFile(name string, content io.Reader, parentId ...string) (File, error)
     IsFolder(id string) (bool, error)
+    IsRoot(id string) (bool, error)
     Update(id string, content io.Reader) (File, error)
     Delete(id string) error
     Get(id string) (io.Reader, error)
     List(parentId string) ([]File, error)
     Search(query File) ([]File, error)
+    GetMetadata(id string) (File, error)
 }
 
 type File struct {

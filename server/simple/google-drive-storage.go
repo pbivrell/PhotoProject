@@ -1,7 +1,6 @@
 package main
 
 import (
-    "strings"
     "io"
     "net/http"
     "google.golang.org/api/drive/v3"
@@ -35,20 +34,32 @@ func (s *GoogleDriveStorage) NewFolder(name string, parentIds ...string) (File, 
 }
 
 func (s *GoogleDriveStorage) IsFolder(id string) (bool, error) {
-    file, err := s.GetMetadata(id)
+    file, err := s.GetGoogleMetadata(id)
     return file.MimeType == MIME_TYPE_GOOGLE_DRIVE_FOLDER, err
+}
+
+func (s *GoogleDriveStorage) IsRoot(id string) (bool, error) {
+    return id == "root", nil
 }
 
 type GoogleDriveMetadata struct {
     Name string
     Id string
-    Parents []string
+    ParentIds []string
     MimeType string
 }
 
-func (s *GoogleDriveStorage) GetMetadata(id string) (GoogleDriveMetadata, error) {
+func (s *GoogleDriveStorage) GetGoogleMetadata(id string) (GoogleDriveMetadata, error) {
     file, err := s.service.Files.Get(id).Do()
-    return GoogleDriveMetadata{Name: file.Name, Id: file.Id, Parents: file.Parents, MimeType: file.MimeType}, err
+    if err != nil {
+        return GoogleDriveMetadata{}, err
+    }
+    return GoogleDriveMetadata{Name: file.Name, Id: file.Id, ParentIds: file.Parents, MimeType: file.MimeType}, err
+}
+
+func (s *GoogleDriveStorage) GetMetadata(id string) (File, error) {
+    metadata, err := s.GetGoogleMetadata(id)
+    return File{Name: metadata.Name, Id: metadata.Id, ParentIds: metadata.ParentIds}, err
 }
 
 func (s *GoogleDriveStorage) NewFile(name string, content io.Reader, parentIds ...string) (File, error){
@@ -56,6 +67,9 @@ func (s *GoogleDriveStorage) NewFile(name string, content io.Reader, parentIds .
         Name:name,
         Parents: parentIds,
     }).Media(content).Do()
+    if err != nil {
+        return File{}, err
+    }
     return File{Name:name, Id:file.Id, ParentIds: parentIds} , err
 }
 
@@ -68,7 +82,7 @@ func (s *GoogleDriveStorage) Delete(id string) error {
     return s.service.Files.Delete(id).Do()
 }
 
-func (s *GoogleDriveStorage) Get(id string) (io.ReadCloser, error){
+func (s *GoogleDriveStorage) Get(id string) (io.Reader, error){
     var res *http.Response
     var err error
     if s.Public {
@@ -83,44 +97,6 @@ func (s *GoogleDriveStorage) Get(id string) (io.ReadCloser, error){
 
 func (s *GoogleDriveStorage) List(parentId string) ([]File, error){
     return s.Search(File{ParentIds: []string{parentId}})
-}
-
-func (s *GoogleDriveStorage) PathSearch(path string) ([]File, error){
-    prev := []File{}
-    for i,v := range strings.Split(path, "/") {
-        fs, err := s.Search(File{Name: v})
-        if err != nil {
-            return nil, err
-        }
-        if i == 0 {
-            prev = fs
-            continue 
-        }
-        newFs := make([]File, 0)
-        if newFs = In(prev,fs); len(newFs) == 0 {
-            return []File{}, nil
-        }
-        prev = newFs
-    }
-    return prev, nil
-}
-
-func In(prev []File, curr []File) []File {
-    res := make([]File, 0)
-    if len(prev) == 0 || len(curr) == 0 {
-        return res
-    }
-
-    for _,v := range prev {
-        for _, v2 := range curr {
-            for _, v3 := range v2.ParentIds {
-                if v.Id == v3 {
-                    res = append(res, v2)
-                }
-            }
-        }
-    }
-    return res
 }
 
 func (s *GoogleDriveStorage) Search(data File) ([]File, error){
@@ -141,7 +117,7 @@ func (s *GoogleDriveStorage) Search(data File) ([]File, error){
 
 
 func buildQuery(data File) string {
-    query := ""
+    query := "trashed = false"
     for _, v := range data.ParentIds {
         if v != "" {
             query = appendAnd(query, "'" + v + "' in parents")
